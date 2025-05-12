@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仕訳データ入力ツール</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+    }
+    button {
+      padding: 10px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>仕訳データ入力ツール</h1>
+  <form id="journalForm">
+    <label for="date">日付 (yyyy/mm/dd):</label>
+    <input type="text" id="date" required>
+
+    <label for="debitAccount">借方勘定科目:</label>
+    <input type="text" id="debitAccount" required>
+
+    <label for="debitAmount">借方金額:</label>
+    <input type="number" id="debitAmount" required>
+
+    <label for="creditAccount">貸方勘定科目:</label>
+    <input type="text" id="creditAccount" required>
+
+    <label for="creditAmount">貸方金額:</label>
+    <input type="number" id="creditAmount" required>
+
+    <label for="description">適用:</label>
+    <textarea id="description" rows="3" required></textarea>
+
+    <button type="button" onclick="generateCSV()">ジョブカン用CSVを出力</button>
+  </form>
+
+  <h2>出力CSV</h2>
+  <textarea id="outputCSV" rows="10" readonly></textarea>
+
+  <script>
+    function generateCSV() {
+      const date = document.getElementById('date').value;
+      const debitAccount = document.getElementById('debitAccount').value;
+      const debitAmount = document.getElementById('debitAmount').value;
+      const creditAccount = document.getElementById('creditAccount').value;
+      const creditAmount = document.getElementById('creditAmount').value;
+      const description = document.getElementById('description').value;
+
+      if (!date || !debitAccount || !debitAmount || !creditAccount || !creditAmount || !description) {
+        alert("すべての項目を入力してください");
+        return;
+      }
+
+      const csvData = [
+        [
+          '1','1',date,'no','000001',
+          debitAccount,'','',
+          '課対仕入10%込',debitAmount,'','','',
+          creditAccount,'','','課対仕入10%込',
+          creditAmount,'','','',description,'','','','','','','','0','3'
+        ]
+      ];
+
+      const csvString = csvData.map(row => row.join(',')).join('\n');
+      document.getElementById('outputCSV').value = csvString;
+    }
+  </script>
+
+</body>
+</html>
