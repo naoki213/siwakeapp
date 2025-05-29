@@ -29,6 +29,24 @@
     document.body.innerHTML = '<h2>アクセスが拒否されました。</h2>';
     throw new Error("パスワード不正");
   }
+function startLowScoreExercise() {
+  const lowScore = questions
+    .map((q, i) => ({ ...q, index: i }))
+    .filter(q => q.origin && q.score <= -5);
+  if (lowScore.length === 0) return alert('スコア-5以下の問題がありません');
+  const weighted = [];
+  lowScore.forEach(q => {
+    const weight = Math.max(1, 10 - q.score);
+    for (let j = 0; j < weight; j++) weighted.push(q);
+  });
+  for (let i = weighted.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [weighted[i], weighted[j]] = [weighted[j], weighted[i]];
+  }
+  currentQueue = weighted;
+  currentIndex = 0;
+  nextQuestion();
+}
 </script>
 <div class="tabs">
   <div class="tab active" onclick="switchTab(0)">演習（A）</div>
@@ -36,8 +54,8 @@
   <div class="tab" onclick="switchTab(2)">確認（C）</div>
 </div>
 
-<div id="tabA" class="content active">
-  <button onclick="startExercise()">スタート</button>
+
+  <button onclick="startLowScoreExercise()">スコア-5以下だけ出題</button>
   <div id="exerciseQuestion"></div>
   <input type="text" id="exerciseAnswer" placeholder="解答を入力" onkeypress="checkEnter(event)">
   <div id="correctAnswer" style="margin-top:10px;"></div>
@@ -125,8 +143,17 @@ function startExercise() {
   const weighted = [];
   questions.forEach((q, i) => {
     if (!q.origin) return;
-    const weight = Math.max(1, 10 - q.score); // scoreが低いほど重みが大きい
+    const weight = Math.max(1, 10 - q.score);
     for (let j = 0; j < weight; j++) weighted.push({ ...q, index: i });
+  });
+  for (let i = weighted.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [weighted[i], weighted[j]] = [weighted[j], weighted[i]];
+  }
+  currentQueue = weighted;
+  currentIndex = 0;
+  nextQuestion();
+});
   });
   // シャッフル
   for (let i = weighted.length - 1; i > 0; i--) {
