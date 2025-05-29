@@ -3,54 +3,181 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>複数仕訳CSV作成ツール</title>
+  <title>memo2</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    textarea { width: 100%; height: 300px; padding: 10px; font-family: monospace; }
-    button { padding: 10px 20px; margin-top: 10px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-    button:hover { background-color: #45a049; }
-    h1, h2 { margin-top: 20px; }
+    body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+    .tabs { display: flex; background: #333; color: white; }
+    .tab { padding: 10px 20px; cursor: pointer; }
+    .tab.active { background: #555; }
+    .content { display: none; padding: 20px; }
+    .content.active { display: block; }
+    textarea, input[type="text"] { width: 100%; padding: 10px; margin-top: 10px; }
+    button { margin-top: 10px; padding: 10px 20px; }
+    .btn-group button { margin-right: 10px; }
+    .sub-tabs { display: flex; margin-top: 20px; }
+    .sub-tab { margin-right: 10px; cursor: pointer; color: blue; text-decoration: underline; }
+    .sub-tab.active { font-weight: bold; }
   </style>
 </head>
 <body>
-  <h1>複数仕訳CSV作成ツール</h1>
-  <p>以下の形式でExcelからコピー＆ペーストしてください（タブ区切り）：</p>
-  <pre>日付	借方	借方補助	借方金額	貸方	貸方補助	貸方金額	適用</pre>
-  <textarea id="inputArea" placeholder="例：
-2025/05/01	普通預金	池田泉州銀行	10000	売上			売上入金"></textarea>
-  <button onclick="generateCSV()">CSV出力</button>
+  <script>
+    const password = prompt("パスワードを入力してください：");
+    if (password !== "2410") {
+      document.body.innerHTML = '<h2>アクセスが拒否されました。</h2>';
+      throw new Error("パスワード不正");
+    }
+  </script>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab(0)">演習（A）</div>
+    <div class="tab" onclick="switchTab(1)">入力（B）</div>
+    <div class="tab" onclick="switchTab(2)">確認（C）</div>
+  </div>
 
-  <h2>出力CSV</h2>
-  <textarea id="outputCSV" readonly></textarea>
+  <div id="tabA" class="content active">
+    <button onclick="startExercise()">スタート</button>
+    <div id="exerciseQuestion"></div>
+    <input type="text" id="exerciseAnswer" placeholder="解答を入力" onkeypress="checkEnter(event)">
+    <div id="correctAnswer" style="margin-top:10px;"></div>
+    <div class="btn-group">
+      <button onclick="gradeAnswer('maru')">〇</button>
+      <button onclick="gradeAnswer('sankaku')">△</button>
+      <button onclick="gradeAnswer('batsu')">×</button>
+    </div>
+  </div>
+
+  <div id="tabB" class="content">
+    <textarea id="newQuestion" placeholder="問題を入力"></textarea>
+    <textarea id="newAnswer" placeholder="解答を入力"></textarea>
+    <button onclick="saveQuestion()">保存</button>
+  </div>
+
+  <div id="tabC" class="content">
+    <div class="sub-tabs">
+      <div class="sub-tab active" onclick="switchSubTab(0)">確認</div>
+      <div class="sub-tab" onclick="switchSubTab(1)">アウトプット</div>
+      <div class="sub-tab" onclick="switchSubTab(2)">インポート</div>
+    </div>
+    <div id="subTab0" class="sub-content">
+      <h3>保存された問題一覧</h3>
+      <ul id="questionList"></ul>
+    </div>
+    <div id="subTab1" class="sub-content" style="display:none;">
+      <button onclick="downloadQuestions()">ファイルとして出力</button>
+    </div>
+    <div id="subTab2" class="sub-content" style="display:none;">
+      <input type="file" id="fileInput">
+      <button onclick="uploadQuestions()">読み込み</button>
+    </div>
+  </div>
 
   <script>
-    function generateCSV() {
-      const input = document.getElementById('inputArea').value.trim();
-      const lines = input.split('\n');
-      const output = [];
+    let questions = JSON.parse(localStorage.getItem('questions') || '[]');
+    let currentQueue = [];
+    let currentIndex = 0;
 
-      for (let i = 0; i < lines.length; i++) {
-        const cols = lines[i].split('\t');
-        if (cols.length < 8) continue;
+    function switchTab(index) {
+      document.querySelectorAll('.tab').forEach((tab, i) => tab.classList.toggle('active', i === index));
+      document.querySelectorAll('.content').forEach((content, i) => content.classList.toggle('active', i === index));
+      if (index === 2) renderList();
+    }
 
-        const [
-          date, debitAcc, debitSub, debitAmt,
-          creditAcc, creditSub, creditAmt, description
-        ] = cols.map(c => c.trim());
+    function switchSubTab(index) {
+      document.querySelectorAll('.sub-tab').forEach((tab, i) => tab.classList.toggle('active', i === index));
+      document.querySelectorAll('.sub-content').forEach((content, i) => content.style.display = i === index ? 'block' : 'none');
+    }
 
-        const debitAmount = debitAmt || creditAmt || '';
-        const creditAmount = creditAmt || debitAmt || '';
-
-        const row = [
-          '1', '1', date, 'no', ('00000' + (i+1)).slice(-6),
-          debitAcc, debitSub, '', '課対仕入10%込', debitAmount, '', '',
-          creditAcc, creditSub, '', '課対仕入10%込', creditAmount, '', '',
-          description, '', '', '', '', '', '', '', '0', '3'
-        ];
-        output.push(row.join(','));
+    function saveQuestion() {
+      const q = document.getElementById('newQuestion').value.trim();
+      const a = document.getElementById('newAnswer').value.trim();
+      if (q && a) {
+        questions.push({ question: q, answer: a, queue: 0, origin: true });
+        localStorage.setItem('questions', JSON.stringify(questions));
+        document.getElementById('newQuestion').value = '';
+        document.getElementById('newAnswer').value = '';
       }
+    }
 
-      document.getElementById('outputCSV').value = output.join('\n');
+    function renderList() {
+      const list = document.getElementById('questionList');
+      list.innerHTML = '';
+      questions.forEach((qa, i) => {
+        if (!qa.origin) return;
+        const li = document.createElement('li');
+        li.innerHTML = `Q${i + 1}: <input value="${qa.question}" onchange="editQuestion(${i}, 'question', this.value)"> ／ A: <input value="${qa.answer}" onchange="editQuestion(${i}, 'answer', this.value)">`;
+        list.appendChild(li);
+      });
+    }
+
+    function editQuestion(index, field, value) {
+      questions[index][field] = value;
+      localStorage.setItem('questions', JSON.stringify(questions));
+    }
+
+    function startExercise() {
+      if (questions.length === 0) return alert('問題がありません');
+      currentQueue = questions.map((q, i) => ({ ...q, index: i })).sort(() => Math.random() - 0.5);
+      currentIndex = 0;
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      if (currentIndex >= currentQueue.length) {
+        alert('全問終了');
+        return;
+      }
+      document.getElementById('exerciseQuestion').textContent = currentQueue[currentIndex].question;
+      document.getElementById('exerciseAnswer').value = '';
+      document.getElementById('correctAnswer').textContent = '';
+    }
+
+    function checkEnter(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        document.getElementById('correctAnswer').textContent = '正解: ' + currentQueue[currentIndex].answer;
+      }
+    }
+
+    function gradeAnswer(grade) {
+      const q = currentQueue[currentIndex];
+      const newQ = { question: q.question, answer: q.answer, queue: 0, origin: false };
+      if (grade === 'batsu') questions.splice(q.index + 5, 0, newQ);
+      else if (grade === 'sankaku') questions.splice(q.index + 10, 0, newQ);
+      else questions.push(newQ);
+      localStorage.setItem('questions', JSON.stringify(questions));
+      currentIndex++;
+      nextQuestion();
+    }
+
+    function downloadQuestions() {
+      const original = questions.filter(q => q.origin);
+      const blob = new Blob([JSON.stringify(original, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'questions.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function uploadQuestions() {
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      if (!file) return alert('ファイルを選択してください');
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!Array.isArray(data)) throw new Error();
+          questions = data.map(q => ({ ...q, origin: true }));
+          localStorage.setItem('questions', JSON.stringify(questions));
+          alert('インポート完了');
+          renderList();
+        } catch {
+          alert('不正なデータです');
+        }
+      };
+      reader.readAsText(file);
     }
   </script>
 </body>
